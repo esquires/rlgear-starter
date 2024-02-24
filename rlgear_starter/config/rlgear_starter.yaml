@@ -1,0 +1,80 @@
+log:
+  # you can try a few prefixes (e.g. some prefixes may only be available on some machines)
+  # the log directory is created in rlgear.utils.from_yaml
+  prefixes:
+    - ~/ray
+  exp_group: rlgear_starter
+
+  callbacks:
+    # sometimes data takes a few iterations to show up but ray writes csv headers
+    # according to what is available on the first iteration. This allows for caching
+    # until all the data is available
+    # see rlgear.rllib_utils.CSVFilteredLoggerCallback
+    csv: {wait_iterations: 0}
+
+    # ray by default logs long names in tensorboard. This allows you to substitute
+    # what is on the left with what is on the right.
+    # see rlgear.rllib_utils.TBXFilteredLoggerCallback
+    tensorboard:
+      prefixes:
+        ray/tune/: tune/
+        ray/tune/info/learner/default_policy/learner_stats/: ''
+
+    json:
+
+    # to reduce logging file sizes you can filter out what is written to tensorboard/csv files
+    # with regex
+    excludes: ['.*max$', '.*done.*', 'date', '.*sampler_perf.*', 'pid', '.*config.*', '.*hist_stats.*', '.*rho_hx.*']
+
+  # all of these are logged to a meta directory so that the experiment is recreatable
+  repos:
+    ../submodules/rlgear: {base_commit: origin/master, check_clean: false, copy_repo: true}
+    ..: {base_commit: master, check_clean: false, copy_repo: true}
+
+rllib:
+  tune_kwargs_blocks: common,ppo
+
+  common:
+
+    verbose: 1
+
+    checkpoint_config:
+      cls: ray.train.CheckpointConfig
+      kwargs: {num_to_keep: 2, checkpoint_at_end: true, checkpoint_frequency: 2}
+
+    progress_reporter:
+      cls: ray.tune.progress_reporter.CLIReporter
+      kwargs: {max_report_frequency: 60}
+
+    resume: false
+    max_failures: 0
+    restore:
+    num_samples: 4
+    config:
+      num_workers: 1
+      rl_module: false
+      _enable_rl_module_api: false
+      _enable_learner_api: false
+      framework: torch
+      callbacks: rlgear.rllib_utils.InfoToCustomMetricsCallback
+      evaluation_config: {explore: false}
+      env: 'SimpleEnv-v0'
+      env_config:
+        sampling_range: [-20, 20]
+        max_steps: 20
+
+  ppo:
+    run_or_experiment: PPO
+    stop:
+      timesteps_total: 50000
+    config:
+      gamma: 0.99
+      lr: 0.0003
+      num_workers: 1
+      model:
+        # ray also has automated models. This is included to demonstrate how to create your own model
+        custom_model: FCNet
+        fcnet_hiddens: [128, 128]
+        custom_model_config:
+          # no reason to use this, just demonstrating how to include extra params in the model
+          offset: 0  
